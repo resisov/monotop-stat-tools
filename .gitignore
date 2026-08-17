@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+.DS_Store
+.pytest_cache/
+.coverage
+.venv/
+
+# Local analysis inputs and regenerable workflow products.
+*.scaled
+/inputs/
+/outputs/
+/output/
+/deliverables/
+/tmp/
+/combine_logger.out

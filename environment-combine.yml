@@ -1,0 +1,22 @@
+name: combine
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - root=6.34
+  - gsl
+  - boost-cpp
+  - eigen
+  - tbb
+  - cmake
+  - ninja
+  - cloudpickle
+  - coffea
+  - hist
+  - lz4
+  - numpy
+  - pandas
+  - matplotlib
+  - mplhep
+  - scipy
+  - uproot
