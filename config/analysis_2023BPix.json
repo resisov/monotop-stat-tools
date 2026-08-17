@@ -1,0 +1,35 @@
+{
+  "analysis": "hadronic_monotop",
+  "era": "2023BPix",
+  "luminosity_fb": 9.68,
+  "input": "../inputs/hadmonotop2023BPix_0802.scaled",
+  "histogram": "ut",
+  "recoil_edges_gev": [350.0, 400.0, 500.0, 600.0, 700.0, 1000.0],
+  "fold_recoil_overflow": true,
+  "top_categories": {
+    "fail": 0,
+    "pass": 1
+  },
+  "regions": ["sr", "wmcr", "wecr", "tmcr", "tecr", "gcr", "zmcr", "zecr"],
+  "data_streams": {
+    "sr": "MET",
+    "wmcr": "MET",
+    "wecr": "EGamma",
+    "tmcr": "MET",
+    "tecr": "EGamma",
+    "gcr": "EGamma",
+    "zmcr": "MET",
+    "zecr": "EGamma"
+  },
+  "benchmark_signal": "sig_Mphi-1250_Mchi-150",
+  "nuisances": {
+    "lumi_2023BPix": 1.014,
+    "signal_norm": 1.10,
+    "diboson_norm": 1.20,
+    "qcd_norm": 1.50,
+    "tf_z": 1.10,
+    "tf_w": 1.10,
+    "tf_top": 1.15
+  },
+  "auto_mc_stats_threshold": 10
+}

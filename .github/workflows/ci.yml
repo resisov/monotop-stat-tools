@@ -1,0 +1,22 @@
+name: workflow-ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Compile Python sources
+        env:
+          PYTHONPYCACHEPREFIX: /tmp/monotop-pycache
+        run: python -m compileall -q run_simple.py workflow tests
+      - name: Run workflow unit tests
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: python -m unittest discover -s tests -v
