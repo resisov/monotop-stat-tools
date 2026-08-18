@@ -169,6 +169,13 @@ def main() -> None:
         issues.append("Expected-limit mediator-mass display range is not 0--2400 GeV")
     if interpolation_summary.get("displayed_mchi_range_gev") != [0.0, 1400.0]:
         issues.append("Expected-limit dark-matter-mass display range is not 0--1400 GeV")
+    signal_model = {
+        "mediator": "vector",
+        "g_q": 0.25,
+        "g_DM": 1.0,
+    }
+    if interpolation_summary.get("signal_model") != signal_model:
+        issues.append("Expected-limit plot is missing the vector-mediator coupling label")
     if on_shell_interpolation_summary.get("coordinate_system") != [
         "mV",
         "beta_chi",
@@ -220,6 +227,8 @@ def main() -> None:
         issues.append("mX=200 Brazilian plot is not blinded")
     if brazil_metadata.get("coordinate_system") != ["mV", "beta_chi"]:
         issues.append("mX=200 Brazilian plot does not use (mV, beta_chi) coordinates")
+    if brazil_metadata.get("signal_model") != signal_model:
+        issues.append("mX=200 Brazilian plot is missing the vector-mediator coupling label")
     if brazil_metadata.get("displayed_mV_range_gev") != [500.0, 2000.0]:
         issues.append("mX=200 Brazilian plot does not use mV range 500--2000 GeV")
 

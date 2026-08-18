@@ -293,6 +293,7 @@ workflow_summary.json                단계별 실행 및 검증 상태
 - median expected `r=1`: 원색 빨강 실선
 - expected ±1σ: 원색 빨강 점선
 - 불확실성 채움 영역 없음
+- 모델 표기: Vector mediator, `g_q = 0.25`, `g_DM = 1.0`
 - 입력 질량점의 변환된 convex hull 밖은 외삽하지 않으므로 흰색으로 표시
 
 ## 분석 모델과 보간

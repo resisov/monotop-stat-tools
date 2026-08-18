@@ -26,7 +26,7 @@ from limit_interpolation import (
     domain_coordinate_systems,
     interpolate_log_surface,
 )
-from plotting import cms_label, save_png_pdf, use_cms_style
+from plotting import MODEL_LABEL, cms_label, save_png_pdf, use_cms_style
 
 
 SURFACES = (
@@ -209,9 +209,11 @@ def main() -> None:
         )
     axis.legend(
         handles=legend_handles,
-        loc="upper right",
+        loc="upper left",
         fontsize=18,
         frameon=False,
+        title=MODEL_LABEL,
+        title_fontsize=19,
     )
     cms_label(axis, luminosity_fb)
     figure.tight_layout()
@@ -224,6 +226,11 @@ def main() -> None:
         plot_dir / f"{stem}.json",
         {
             "blinded": True,
+            "signal_model": {
+                "mediator": "vector",
+                "g_q": 0.25,
+                "g_DM": 1.0,
+            },
             "fixed_mX_gev": float(args.mx),
             "shell_mode": args.shell_mode,
             "method": (

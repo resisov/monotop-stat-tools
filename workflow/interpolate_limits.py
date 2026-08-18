@@ -28,7 +28,7 @@ from limit_interpolation import (
     domain_coordinate_systems,
     interpolate_log_surface,
 )
-from plotting import cms_label, save_png_pdf, use_cms_style
+from plotting import MODEL_LABEL, cms_label, save_png_pdf, use_cms_style
 
 
 SURFACES = [
@@ -378,6 +378,9 @@ def main() -> None:
         handles=legend_handles,
         loc="upper left",
         fontsize=18,
+        title=MODEL_LABEL,
+        title_fontsize=19,
+        frameon=False,
     )
     axis.set_xlim(0.0, args.plot_xmax)
     axis.set_ylim(args.plot_ymin, args.plot_ymax)
@@ -431,6 +434,11 @@ def main() -> None:
         "colorbar_quantity": "log10(r)",
         "colorbar_limits_log10_r": list(colorbar_log10_limits),
         "colorbar_colormap": "viridis_r",
+        "signal_model": {
+            "mediator": "vector",
+            "g_q": 0.25,
+            "g_DM": 1.0,
+        },
         "shell_mode": args.shell_mode,
         "step_gev": args.step,
         "n_all_input_points": len(all_rows),
