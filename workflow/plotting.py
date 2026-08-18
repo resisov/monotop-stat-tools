@@ -16,6 +16,7 @@ import mplhep as hep
 
 
 CMS_LLABEL = "Work in progress"
+MODEL_LABEL = "Vector mediator\n" + r"$g_q = 0.25,\ g_{\mathrm{DM}} = 1.0$"
 
 
 def use_cms_style() -> None:

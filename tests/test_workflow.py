@@ -8,6 +8,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import numpy as np
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
@@ -15,6 +17,13 @@ sys.path.insert(0, str(REPO_ROOT / "workflow"))
 
 import run_simple
 from common import signal_metadata
+from limit_interpolation import (
+    beta_chi,
+    coordinate_system,
+    interpolate_log_surface,
+    kappa_chi,
+    signed_shell_coordinate,
+)
 
 
 class WorkflowCliTests(unittest.TestCase):
@@ -127,6 +136,89 @@ class WorkflowStateTests(unittest.TestCase):
                 "mphi": 1000,
                 "mchi": 150,
             },
+        )
+
+
+class LimitInterpolationTests(unittest.TestCase):
+    def test_beta_chi_uses_strict_on_shell_domain(self) -> None:
+        values = beta_chi(
+            np.asarray([1000.0, 1000.0, 1000.0, 1000.0]),
+            np.asarray([0.0, 300.0, 500.0, 600.0]),
+        )
+
+        np.testing.assert_allclose(values[:2], [1.0, 0.8])
+        self.assertTrue(np.isnan(values[2]))
+        self.assertTrue(np.isnan(values[3]))
+
+    def test_kappa_chi_uses_strict_off_shell_domain(self) -> None:
+        values = kappa_chi(
+            np.asarray([1000.0, 1000.0, 1000.0]),
+            np.asarray([600.0, 500.0, 300.0]),
+        )
+
+        np.testing.assert_allclose(values[0], np.sqrt(0.44))
+        self.assertTrue(np.isnan(values[1]))
+        self.assertTrue(np.isnan(values[2]))
+
+    def test_signed_shell_coordinate_is_continuous_at_threshold(self) -> None:
+        values = signed_shell_coordinate(
+            np.asarray([1000.0, 1000.0, 1000.0]),
+            np.asarray([300.0, 500.0, 600.0]),
+        )
+
+        np.testing.assert_allclose(values, [0.8, 0.0, -np.sqrt(0.44)])
+
+    def test_on_shell_interpolation_hits_inputs_and_masks_threshold(self) -> None:
+        mediator = np.asarray([1000.0, 1500.0, 1500.0, 2000.0])
+        dark_matter = np.asarray([100.0, 100.0, 500.0, 200.0])
+        limits = np.asarray([1.0, 2.0, 4.0, 8.0])
+        evaluation_mediator = np.concatenate((mediator, [1000.0, 1000.0]))
+        evaluation_dark_matter = np.concatenate((dark_matter, [500.0, 600.0]))
+
+        result = interpolate_log_surface(
+            mediator,
+            dark_matter,
+            limits,
+            evaluation_mediator,
+            evaluation_dark_matter,
+            shell_mode="on-shell-only",
+        )
+
+        np.testing.assert_allclose(result[:4], limits)
+        self.assertTrue(np.isnan(result[4]))
+        self.assertTrue(np.isnan(result[5]))
+        self.assertEqual(coordinate_system("on-shell-only"), ("mV", "beta_chi"))
+
+    def test_combined_interpolation_connects_shell_boundary(self) -> None:
+        mediator = np.asarray([1000.0, 2000.0, 1000.0, 2000.0])
+        on_mass_fraction = 0.5 * np.sqrt(1.0 - 0.2**2)
+        off_mass_fraction = 0.5 * np.sqrt(1.0 + 0.2**2)
+        dark_matter = mediator * np.asarray(
+            [
+                on_mass_fraction,
+                on_mass_fraction,
+                off_mass_fraction,
+                off_mass_fraction,
+            ]
+        )
+        limits = np.asarray([1.0, 2.0, 4.0, 8.0])
+        evaluation_mediator = np.concatenate((mediator, [1500.0]))
+        evaluation_dark_matter = np.concatenate((dark_matter, [750.0]))
+
+        result = interpolate_log_surface(
+            mediator,
+            dark_matter,
+            limits,
+            evaluation_mediator,
+            evaluation_dark_matter,
+            shell_mode="all",
+        )
+
+        np.testing.assert_allclose(result[: len(limits)], limits)
+        self.assertTrue(np.isfinite(result[-1]))
+        self.assertEqual(
+            coordinate_system("off-shell-only"),
+            ("mV", "kappa_chi"),
         )
 
 

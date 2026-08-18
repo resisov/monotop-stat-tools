@@ -2,7 +2,7 @@
   "analysis": "hadronic_monotop",
   "era": "2022EE",
   "luminosity_fb": 26.68,
-  "input": "../inputs/hadmonotop2022EE_0702.scaled",
+  "input": "../inputs/hadmonotop2022EE_0802.scaled",
   "histogram": "ut_bin",
   "recoil_edges_gev": [350.0, 400.0, 500.0, 600.0, 700.0, 1000.0],
   "fold_recoil_overflow": true,
