@@ -18,9 +18,14 @@ import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
 import numpy as np
-from scipy.interpolate import LinearNDInterpolator
 
 from common import DEFAULT_OUTPUT, ensure_directories, write_json
+from limit_interpolation import (
+    SHELL_MODES,
+    coordinate_system,
+    domain_coordinate_systems,
+    interpolate_log_surface,
+)
 from plotting import cms_label, save_png_pdf, use_cms_style
 
 
@@ -42,9 +47,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--xmax", type=float, default=2000.0, help="Displayed mV maximum")
     parser.add_argument(
         "--shell-mode",
-        choices=("all", "on-shell-only"),
+        choices=SHELL_MODES,
         default="on-shell-only",
-        help="Use all points or only mV > 2*mX points",
+        help="Use piecewise on/off-shell interpolation or one shell domain only",
     )
     parser.add_argument(
         "--subdirectory",
@@ -67,6 +72,12 @@ def interpolate_slice(
             for row in rows
             if float(row["mphi"]) > 2.0 * float(row["mchi"])
         ]
+    elif shell_mode == "off-shell-only":
+        rows = [
+            row
+            for row in rows
+            if float(row["mphi"]) < 2.0 * float(row["mchi"])
+        ]
     points = np.asarray([[row["mphi"], row["mchi"]] for row in rows], dtype=float)
     mv = np.arange(0.0, xmax + 0.5 * step, step)
     evaluation_points = np.column_stack((mv, np.full_like(mv, mx)))
@@ -74,15 +85,20 @@ def interpolate_slice(
 
     for name in SURFACES:
         values = np.asarray([row[name] for row in rows], dtype=float)
-        valid = np.isfinite(values) & (values > 0.0)
-        interpolator = LinearNDInterpolator(
-            points[valid], np.log10(values[valid]), fill_value=np.nan
+        surfaces[name] = interpolate_log_surface(
+            points[:, 0],
+            points[:, 1],
+            values,
+            evaluation_points[:, 0],
+            evaluation_points[:, 1],
+            shell_mode=shell_mode,
         )
-        surfaces[name] = np.power(10.0, interpolator(evaluation_points))
 
     finite = np.logical_and.reduce([np.isfinite(surfaces[name]) for name in SURFACES])
     if shell_mode == "on-shell-only":
         finite &= mv > 2.0 * mx
+    elif shell_mode == "off-shell-only":
+        finite &= mv < 2.0 * mx
     return mv[finite], {name: values[finite] for name, values in surfaces.items()}
 
 
@@ -202,13 +218,39 @@ def main() -> None:
     save_png_pdf(figure, plot_dir / stem)
     plt.close(figure)
 
+    interpolation_axes = coordinate_system(args.shell_mode)
+    domain_systems = domain_coordinate_systems(args.shell_mode)
     write_json(
         plot_dir / f"{stem}.json",
         {
             "blinded": True,
             "fixed_mX_gev": float(args.mx),
             "shell_mode": args.shell_mode,
-            "method": "piecewise-linear interpolation of log10(r95) inside the input convex hull",
+            "method": (
+                "continuous signed-threshold interpolation of log10(r95) inside the "
+                "transformed convex hull"
+                if args.shell_mode == "all"
+                else "threshold-aware piecewise-linear interpolation of log10(r95) "
+                "inside the transformed convex hull"
+            ),
+            "coordinate_system": list(interpolation_axes),
+            "domain_coordinate_systems": domain_systems,
+            "coordinate_rescaling": True,
+            "beta_chi_definition": (
+                "sqrt(1 - (2*mX/mV)^2) for the strict mV > 2*mX domain"
+                if args.shell_mode in ("all", "on-shell-only")
+                else None
+            ),
+            "kappa_chi_definition": (
+                "sqrt((2*mX/mV)^2 - 1) for the strict mV < 2*mX domain"
+                if args.shell_mode in ("all", "off-shell-only")
+                else None
+            ),
+            "threshold_stitching": (
+                "solid C0 connection at signed_shell_coordinate = 0"
+                if args.shell_mode == "all"
+                else "not applicable to a single shell domain"
+            ),
             "input": str((output / "limits" / "limits.json").relative_to(output)),
             "mV_step_gev": float(args.step),
             "displayed_mV_range_gev": [float(args.xmin), float(args.xmax)],

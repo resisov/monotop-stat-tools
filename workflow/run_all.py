@@ -87,6 +87,18 @@ def main() -> None:
     run(
         [
             python,
+            str(WORKFLOW_DIR / "interpolate_limits.py"),
+            "--output",
+            str(args.output),
+            "--shell-mode",
+            "off-shell-only",
+            "--subdirectory",
+            "interpolation_off_shell_only",
+        ]
+    )
+    run(
+        [
+            python,
             str(WORKFLOW_DIR / "plot_brazil_limit.py"),
             "--output",
             str(args.output),

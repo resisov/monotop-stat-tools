@@ -66,7 +66,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--shell-mode",
-        choices=("all", "on-shell-only"),
+        choices=("all", "on-shell-only", "off-shell-only"),
         default="all",
         help="Mass points used in the two-dimensional limit interpolation",
     )
@@ -566,11 +566,11 @@ def main() -> None:
     if args.force:
         limit_command.append("--force")
 
-    interpolation_subdirectory = (
-        "interpolation"
-        if args.shell_mode == "all"
-        else "interpolation_on_shell_only"
-    )
+    interpolation_subdirectory = {
+        "all": "interpolation",
+        "on-shell-only": "interpolation_on_shell_only",
+        "off-shell-only": "interpolation_off_shell_only",
+    }[args.shell_mode]
     interpolation_command = [
         python,
         str(WORKFLOW_DIR / "interpolate_limits.py"),

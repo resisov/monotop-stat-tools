@@ -18,12 +18,16 @@ import matplotlib.pyplot as plt
 import mplhep as hep
 import numpy as np
 import uproot
-from matplotlib.colors import LogNorm
+from matplotlib.colors import Normalize
 from matplotlib.lines import Line2D
-from matplotlib.patches import Patch
-from scipy.interpolate import LinearNDInterpolator
 
 from common import DEFAULT_OUTPUT, ensure_directories, write_json
+from limit_interpolation import (
+    SHELL_MODES,
+    coordinate_system,
+    domain_coordinate_systems,
+    interpolate_log_surface,
+)
 from plotting import cms_label, save_png_pdf, use_cms_style
 
 
@@ -49,9 +53,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--step", type=float, default=25.0, help="Grid step in GeV")
     parser.add_argument(
         "--shell-mode",
-        choices=["all", "on-shell-only"],
+        choices=SHELL_MODES,
         default="all",
-        help="Optionally exclude points with mV <= 2*mchi before interpolation",
+        help=(
+            "Use separate threshold-aware on/off-shell interpolation domains, "
+            "or select one domain only"
+        ),
     )
     parser.add_argument(
         "--subdirectory",
@@ -71,6 +78,12 @@ def parse_args() -> argparse.Namespace:
         help="Relic-density contour level",
     )
     parser.add_argument(
+        "--plot-xmax",
+        type=float,
+        default=2400.0,
+        help="Displayed upper mediator-mass bound in GeV (default: 2400)",
+    )
+    parser.add_argument(
         "--plot-ymin",
         type=float,
         default=0.0,
@@ -79,8 +92,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--plot-ymax",
         type=float,
-        default=1000.0,
-        help="Displayed upper mchi bound in GeV (default: 1000)",
+        default=1400.0,
+        help="Displayed upper mchi bound in GeV (default: 1400)",
     )
     parser.add_argument(
         "--plot-basename",
@@ -121,6 +134,7 @@ def draw_relic_density_contour(
     axis: plt.Axes,
     relic: dict[str, np.ndarray | str],
     level: float,
+    shell_mode: str,
 ) -> int:
     mphi = np.asarray(relic["mphi"], dtype=float)
     mchi = np.asarray(relic["mchi"], dtype=float)
@@ -128,7 +142,12 @@ def draw_relic_density_contour(
     contour_count = 0
     # Triangulate the two shell regimes independently.  This follows the Run-2
     # implementation and prevents artificial contour segments across mV=2*mchi.
-    for mask in (mphi >= 2.0 * mchi, mphi < 2.0 * mchi):
+    masks = []
+    if shell_mode in ("all", "on-shell-only"):
+        masks.append(mphi > 2.0 * mchi)
+    if shell_mode in ("all", "off-shell-only"):
+        masks.append(mphi < 2.0 * mchi)
+    for mask in masks:
         if np.count_nonzero(mask) < 3:
             continue
         subset = density[mask]
@@ -170,6 +189,8 @@ def draw_relic_density_contour(
 
 def main() -> None:
     args = parse_args()
+    if args.plot_xmax <= 0.0:
+        raise ValueError("--plot-xmax must be positive")
     if args.plot_ymin >= args.plot_ymax:
         raise ValueError("--plot-ymin must be smaller than --plot-ymax")
     if Path(args.plot_basename).name != args.plot_basename:
@@ -181,15 +202,20 @@ def main() -> None:
     luminosity_fb = float(manifest["luminosity_fb"])
     relic = load_relic_density(args.relic_density_file)
     all_rows = json.loads((output / "limits" / "limits.json").read_text())
-    rows = (
-        [
+    if args.shell_mode == "on-shell-only":
+        rows = [
             row
             for row in all_rows
             if float(row["mphi"]) > 2.0 * float(row["mchi"])
         ]
-        if args.shell_mode == "on-shell-only"
-        else all_rows
-    )
+    elif args.shell_mode == "off-shell-only":
+        rows = [
+            row
+            for row in all_rows
+            if float(row["mphi"]) < 2.0 * float(row["mchi"])
+        ]
+    else:
+        rows = all_rows
     if len(rows) < 3:
         raise RuntimeError(
             f"Need at least three points for interpolation; found {len(rows)}"
@@ -202,13 +228,14 @@ def main() -> None:
     surfaces: dict[str, np.ndarray] = {}
     for surface in SURFACES:
         values = np.asarray([row[surface] for row in rows], dtype=float)
-        valid = np.isfinite(values) & (values > 0.0)
-        interpolator = LinearNDInterpolator(
-            points[valid],
-            np.log10(values[valid]),
-            fill_value=np.nan,
+        surfaces[surface] = interpolate_log_surface(
+            points[:, 0],
+            points[:, 1],
+            values,
+            xx,
+            yy,
+            shell_mode=args.shell_mode,
         )
-        surfaces[surface] = np.power(10.0, interpolator(xx, yy))
 
     np.savez_compressed(
         interpolation_dir / "limit_surfaces.npz",
@@ -242,33 +269,21 @@ def main() -> None:
     expected = surfaces["expected"]
     expected_minus1 = surfaces["expected_minus1"]
     expected_plus1 = surfaces["expected_plus1"]
-    finite = expected[np.isfinite(expected) & (expected > 0.0)]
-    vmin = max(float(np.nanpercentile(finite, 2)), 1e-4)
-    vmax = max(float(np.nanpercentile(finite, 98)), vmin * 10.0)
+    colorbar_log10_limits = (-1.5, 1.5)
     use_cms_style()
     fig, axis = plt.subplots(figsize=(12.0, 10.0))
     mesh = axis.pcolormesh(
         mphi_grid,
         mchi_grid,
-        expected.T,
+        np.log10(expected.T),
         shading="auto",
-        cmap="viridis",
-        norm=LogNorm(vmin=vmin, vmax=vmax),
+        cmap="viridis_r",
+        norm=Normalize(
+            vmin=colorbar_log10_limits[0],
+            vmax=colorbar_log10_limits[1],
+            clip=True,
+        ),
     )
-    one_sigma_band = np.where(
-        (expected_minus1 <= 1.0) & (expected_plus1 >= 1.0),
-        1.0,
-        np.nan,
-    )
-    if np.any(np.isfinite(one_sigma_band)):
-        axis.contourf(
-            mphi_grid,
-            mchi_grid,
-            one_sigma_band.T,
-            levels=[0.5, 1.5],
-            colors=["#d95f5f"],
-            alpha=0.28,
-        )
     for surface in (expected_minus1, expected_plus1):
         finite_surface = surface[np.isfinite(surface)]
         if len(finite_surface) and np.nanmin(finite_surface) <= 1.0 <= np.nanmax(
@@ -279,8 +294,8 @@ def main() -> None:
                 mchi_grid,
                 surface.T,
                 levels=[1.0],
-                colors=["#b2182b"],
-                linewidths=1.8,
+                colors=["#ff0000"],
+                linewidths=2.0,
                 linestyles="--",
             )
     if np.nanmin(expected) <= 1.0 <= np.nanmax(expected):
@@ -289,16 +304,18 @@ def main() -> None:
             mchi_grid,
             expected.T,
             levels=[1.0],
-            colors=["black"],
-            linewidths=2.2,
+            colors=["#ff0000"],
+            linewidths=2.4,
+            linestyles="-",
         )
 
     relic_contour_segments = draw_relic_density_contour(
         axis,
         relic,
         args.relic_density_level,
+        args.shell_mode,
     )
-    if relic_contour_segments == 0:
+    if relic_contour_segments == 0 and args.shell_mode != "off-shell-only":
         raise RuntimeError(
             f"No relic-density contour found at Omega*h^2={args.relic_density_level}"
         )
@@ -316,25 +333,25 @@ def main() -> None:
         linewidth=2.0,
     )
     colorbar = fig.colorbar(mesh, ax=axis)
-    colorbar.set_label("Expected 95% CL upper limit on r")
+    colorbar.set_label(r"$\log_{10}$(expected 95% CL upper limit on $r$)")
     axis.set_xlabel(r"$m_V$ [GeV]")
     axis.set_ylabel(r"$m_{\chi}$ [GeV]")
     legend_handles = [
-        Line2D([0], [0], color="black", linewidth=2.2, label="Expected $r=1$"),
-        Patch(
-            facecolor="#d95f5f",
-            edgecolor="#b2182b",
-            linestyle="--",
-            alpha=0.5,
-            label=r"Expected $\pm1\sigma$",
+        Line2D(
+            [0],
+            [0],
+            color="#ff0000",
+            linewidth=2.4,
+            linestyle="-",
+            label="Expected $r=1$",
         ),
         Line2D(
             [0],
             [0],
-            color="#666666",
-            linestyle="-",
-            linewidth=2.4,
-            label=rf"Relic density = {args.relic_density_level:g}",
+            color="#ff0000",
+            linewidth=2.0,
+            linestyle="--",
+            label=r"Expected $\pm1\sigma$",
         ),
         Line2D(
             [0],
@@ -345,12 +362,24 @@ def main() -> None:
             label=r"$m_V=2m_\chi$",
         ),
     ]
+    if relic_contour_segments > 0:
+        legend_handles.insert(
+            2,
+            Line2D(
+                [0],
+                [0],
+                color="#666666",
+                linestyle="-",
+                linewidth=2.4,
+                label=rf"Relic density = {args.relic_density_level:g}",
+            ),
+        )
     axis.legend(
         handles=legend_handles,
         loc="upper left",
         fontsize=18,
     )
-    axis.set_xlim(0.0, 2000.0)
+    axis.set_xlim(0.0, args.plot_xmax)
     axis.set_ylim(args.plot_ymin, args.plot_ymax)
     axis.grid(alpha=0.15)
     cms_label(axis, luminosity_fb)
@@ -358,8 +387,50 @@ def main() -> None:
     save_png_pdf(fig, interpolation_dir / args.plot_basename)
     plt.close(fig)
 
+    interpolation_axes = coordinate_system(args.shell_mode)
+    domain_systems = domain_coordinate_systems(args.shell_mode)
     summary = {
-        "method": "piecewise-linear interpolation of log10(r95) inside the convex hull",
+        "method": (
+            "continuous signed-threshold interpolation of log10(r95) inside the "
+            "transformed convex hull"
+            if args.shell_mode == "all"
+            else "threshold-aware piecewise-linear interpolation of log10(r95) "
+            "inside the transformed convex hull"
+        ),
+        "coordinate_system": list(interpolation_axes),
+        "domain_coordinate_systems": domain_systems,
+        "coordinate_rescaling": True,
+        "beta_chi_definition": (
+            "sqrt(1 - (2*mX/mV)^2) for the strict mV > 2*mX domain"
+            if args.shell_mode in ("all", "on-shell-only")
+            else None
+        ),
+        "kappa_chi_definition": (
+            "sqrt((2*mX/mV)^2 - 1) for the strict mV < 2*mX domain"
+            if args.shell_mode in ("all", "off-shell-only")
+            else None
+        ),
+        "threshold_stitching": (
+            "solid C0 connection at signed_shell_coordinate = 0"
+            if args.shell_mode == "all"
+            else "not applicable to a single shell domain"
+        ),
+        "contour_style": {
+            "expected": {
+                "color": "#ff0000",
+                "linestyle": "solid",
+                "linewidth": 2.4,
+            },
+            "expected_pm1sigma": {
+                "color": "#ff0000",
+                "linestyle": "dashed",
+                "linewidth": 2.0,
+            },
+            "filled_uncertainty_band": False,
+        },
+        "colorbar_quantity": "log10(r)",
+        "colorbar_limits_log10_r": list(colorbar_log10_limits),
+        "colorbar_colormap": "viridis_r",
         "shell_mode": args.shell_mode,
         "step_gev": args.step,
         "n_all_input_points": len(all_rows),
@@ -367,7 +438,7 @@ def main() -> None:
         "n_finite_grid_points": int(np.isfinite(expected).sum()),
         "mphi_range_gev": [float(mphi_grid.min()), float(mphi_grid.max())],
         "mchi_range_gev": [float(mchi_grid.min()), float(mchi_grid.max())],
-        "displayed_mphi_range_gev": [0.0, 2000.0],
+        "displayed_mphi_range_gev": [0.0, args.plot_xmax],
         "displayed_mchi_range_gev": [args.plot_ymin, args.plot_ymax],
         "plot_basename": args.plot_basename,
         "extrapolation": "none",
