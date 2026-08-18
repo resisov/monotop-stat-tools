@@ -80,8 +80,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--plot-xmin",
         type=float,
-        default=300.0,
-        help="Displayed lower mediator-mass bound on the x axis in GeV (default: 300)",
+        default=200.0,
+        help="Displayed lower mediator-mass bound on the x axis in GeV (default: 200)",
     )
     parser.add_argument(
         "--plot-xmax",

@@ -287,7 +287,7 @@ workflow_summary.json                단계별 실행 및 검증 상태
 
 현재 2D expected-limit 플롯은 다음 표현을 사용합니다.
 
-- 수평축 `mV`: 300–2500 GeV
+- 수평축 `mV`: 200–2500 GeV
 - 수직축 `mX`: 50–1250 GeV
 - 컬러바: `log10(r)`, 범위 -1.5–1.5, 반전된 `viridis_r`
 - median expected `r=1`: 원색 빨강 실선
