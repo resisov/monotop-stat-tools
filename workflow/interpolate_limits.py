@@ -78,22 +78,28 @@ def parse_args() -> argparse.Namespace:
         help="Relic-density contour level",
     )
     parser.add_argument(
+        "--plot-xmin",
+        type=float,
+        default=300.0,
+        help="Displayed lower mediator-mass bound on the x axis in GeV (default: 300)",
+    )
+    parser.add_argument(
         "--plot-xmax",
         type=float,
-        default=2400.0,
-        help="Displayed upper mediator-mass bound in GeV (default: 2400)",
+        default=2500.0,
+        help="Displayed upper mediator-mass bound on the x axis in GeV (default: 2500)",
     )
     parser.add_argument(
         "--plot-ymin",
         type=float,
-        default=0.0,
-        help="Displayed lower mchi bound in GeV (default: 0)",
+        default=50.0,
+        help="Displayed lower mchi bound on the y axis in GeV (default: 50)",
     )
     parser.add_argument(
         "--plot-ymax",
         type=float,
-        default=1400.0,
-        help="Displayed upper mchi bound in GeV (default: 1400)",
+        default=1250.0,
+        help="Displayed upper mchi bound on the y axis in GeV (default: 1250)",
     )
     parser.add_argument(
         "--plot-basename",
@@ -189,8 +195,8 @@ def draw_relic_density_contour(
 
 def main() -> None:
     args = parse_args()
-    if args.plot_xmax <= 0.0:
-        raise ValueError("--plot-xmax must be positive")
+    if args.plot_xmin >= args.plot_xmax:
+        raise ValueError("--plot-xmin must be smaller than --plot-xmax")
     if args.plot_ymin >= args.plot_ymax:
         raise ValueError("--plot-ymin must be smaller than --plot-ymax")
     if Path(args.plot_basename).name != args.plot_basename:
@@ -371,18 +377,24 @@ def main() -> None:
                 color="#666666",
                 linestyle="-",
                 linewidth=2.4,
-                label=rf"Relic density = {args.relic_density_level:g}",
+                label=rf"$\Omega_{{\mathrm{{nbm}}}}h^2 = {args.relic_density_level:g}$",
             ),
         )
-    axis.legend(
+    legend = axis.legend(
         handles=legend_handles,
         loc="upper left",
-        fontsize=18,
+        fontsize=21,
         title=MODEL_LABEL,
-        title_fontsize=19,
-        frameon=False,
+        title_fontsize=23,
+        frameon=True,
+        facecolor="white",
+        edgecolor="black",
+        framealpha=1.0,
+        borderpad=0.8,
+        labelspacing=0.6,
     )
-    axis.set_xlim(0.0, args.plot_xmax)
+    legend.set_zorder(30)
+    axis.set_xlim(args.plot_xmin, args.plot_xmax)
     axis.set_ylim(args.plot_ymin, args.plot_ymax)
     axis.grid(alpha=0.15)
     cms_label(axis, luminosity_fb)
@@ -446,7 +458,8 @@ def main() -> None:
         "n_finite_grid_points": int(np.isfinite(expected).sum()),
         "mphi_range_gev": [float(mphi_grid.min()), float(mphi_grid.max())],
         "mchi_range_gev": [float(mchi_grid.min()), float(mchi_grid.max())],
-        "displayed_mphi_range_gev": [0.0, args.plot_xmax],
+        "plot_axis_order": ["mV", "mX"],
+        "displayed_mphi_range_gev": [args.plot_xmin, args.plot_xmax],
         "displayed_mchi_range_gev": [args.plot_ymin, args.plot_ymax],
         "plot_basename": args.plot_basename,
         "extrapolation": "none",
@@ -455,6 +468,7 @@ def main() -> None:
             "sha256": str(relic["sha256"]),
             "columns": ["mV", "mchi", "Omega_h2"],
             "constraint": float(args.relic_density_level),
+            "legend_label": f"Omega_nbm h^2 = {args.relic_density_level:g}",
             "n_input_points": int(len(np.asarray(relic["mphi"]))),
             "n_contour_segments": int(relic_contour_segments),
             "shell_triangulation": "on-shell and off-shell subsets treated independently",

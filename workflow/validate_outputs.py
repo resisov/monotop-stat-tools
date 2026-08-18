@@ -127,6 +127,8 @@ def main() -> None:
     ):
         if relic_summary.get("constraint") != 0.12:
             issues.append(f"{subdirectory}: missing Omega_chi*h^2=0.12 contour")
+        if relic_summary.get("legend_label") != "Omega_nbm h^2 = 0.12":
+            issues.append(f"{subdirectory}: wrong relic-density legend label")
         if (
             subdirectory != "interpolation_off_shell_only"
             and int(relic_summary.get("n_contour_segments", 0)) < 1
@@ -165,10 +167,12 @@ def main() -> None:
         issues.append("Expected-limit log10(r) colorbar is not fixed to -1.5--1.5")
     if interpolation_summary.get("colorbar_colormap") != "viridis_r":
         issues.append("Expected-limit colorbar color assignment is not reversed")
-    if interpolation_summary.get("displayed_mphi_range_gev") != [0.0, 2400.0]:
-        issues.append("Expected-limit mediator-mass display range is not 0--2400 GeV")
-    if interpolation_summary.get("displayed_mchi_range_gev") != [0.0, 1400.0]:
-        issues.append("Expected-limit dark-matter-mass display range is not 0--1400 GeV")
+    if interpolation_summary.get("plot_axis_order") != ["mV", "mX"]:
+        issues.append("Expected-limit plot axes are not ordered as (mV, mX)")
+    if interpolation_summary.get("displayed_mphi_range_gev") != [300.0, 2500.0]:
+        issues.append("Expected-limit mediator-mass display range is not 300--2500 GeV")
+    if interpolation_summary.get("displayed_mchi_range_gev") != [50.0, 1250.0]:
+        issues.append("Expected-limit dark-matter-mass display range is not 50--1250 GeV")
     signal_model = {
         "mediator": "vector",
         "g_q": 0.25,

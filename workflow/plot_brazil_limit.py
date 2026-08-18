@@ -207,14 +207,20 @@ def main() -> None:
                 label=r"$m_V=2m_X$",
             )
         )
-    axis.legend(
+    legend = axis.legend(
         handles=legend_handles,
         loc="upper left",
-        fontsize=18,
-        frameon=False,
+        fontsize=21,
+        frameon=True,
         title=MODEL_LABEL,
-        title_fontsize=19,
+        title_fontsize=23,
+        facecolor="white",
+        edgecolor="black",
+        framealpha=1.0,
+        borderpad=0.8,
+        labelspacing=0.6,
     )
+    legend.set_zorder(30)
     cms_label(axis, luminosity_fb)
     figure.tight_layout()
     save_png_pdf(figure, plot_dir / stem)
