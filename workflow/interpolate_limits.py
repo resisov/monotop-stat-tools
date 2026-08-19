@@ -15,6 +15,7 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import matplotlib.patheffects as path_effects
 import mplhep as hep
 import numpy as np
 import uproot
@@ -44,6 +45,12 @@ DEFAULT_RELIC_DENSITY_FILE = (
     / "external"
     / "relic_densities"
     / "monotop_vector_nom_relic_density_scan.txt"
+)
+DEFAULT_RUN2_OBSERVED_CONTOUR = (
+    Path(__file__).resolve().parents[1]
+    / "external"
+    / "run2"
+    / "cms_sus_23_004_vector_observed.csv"
 )
 
 
@@ -76,6 +83,15 @@ def parse_args() -> argparse.Namespace:
         type=float,
         default=0.12,
         help="Relic-density contour level",
+    )
+    parser.add_argument(
+        "--run2-observed-contour",
+        type=Path,
+        default=None,
+        help=(
+            "Optional ordered mV,mX CSV for a Run-2 observed exclusion overlay; "
+            f"the matching nominal CMS contour is {DEFAULT_RUN2_OBSERVED_CONTOUR}"
+        ),
     )
     parser.add_argument(
         "--plot-xmin",
@@ -133,6 +149,36 @@ def load_relic_density(path: Path) -> dict[str, np.ndarray | str]:
         "density": values[:, 2],
         "path": str(path),
         "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+    }
+
+
+def load_observed_contour(path: Path) -> dict[str, object]:
+    path = path.resolve()
+    if not path.is_file():
+        raise FileNotFoundError(f"Observed contour not found: {path}")
+    values = np.genfromtxt(path, delimiter=",", names=True)
+    if values.dtype.names != ("mV_GeV", "mX_GeV"):
+        raise ValueError(
+            "Observed contour must contain exactly mV_GeV,mX_GeV columns: "
+            f"{path}"
+        )
+    mphi = np.atleast_1d(np.asarray(values["mV_GeV"], dtype=float))
+    mchi = np.atleast_1d(np.asarray(values["mX_GeV"], dtype=float))
+    valid = np.isfinite(mphi) & np.isfinite(mchi)
+    mphi = mphi[valid]
+    mchi = mchi[valid]
+    if len(mphi) < 2:
+        raise ValueError(f"Observed contour has fewer than two finite points: {path}")
+    metadata_path = path.with_suffix(".json")
+    metadata = (
+        json.loads(metadata_path.read_text()) if metadata_path.is_file() else None
+    )
+    return {
+        "mphi": mphi,
+        "mchi": mchi,
+        "path": str(path),
+        "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+        "metadata": metadata,
     }
 
 
@@ -207,6 +253,14 @@ def main() -> None:
     manifest = json.loads((output / "manifest.json").read_text())
     luminosity_fb = float(manifest["luminosity_fb"])
     relic = load_relic_density(args.relic_density_file)
+    run2_observed = (
+        load_observed_contour(args.run2_observed_contour)
+        if args.run2_observed_contour is not None
+        else None
+    )
+    draw_run2_observed = (
+        run2_observed is not None and args.shell_mode != "off-shell-only"
+    )
     all_rows = json.loads((output / "limits" / "limits.json").read_text())
     if args.shell_mode == "on-shell-only":
         rows = [
@@ -315,6 +369,23 @@ def main() -> None:
             linestyles="-",
         )
 
+    run2_color = "#00a6ff"
+    if draw_run2_observed:
+        run2_line = axis.plot(
+            np.asarray(run2_observed["mphi"], dtype=float),
+            np.asarray(run2_observed["mchi"], dtype=float),
+            color=run2_color,
+            linewidth=3.0,
+            linestyle="-",
+            zorder=14,
+        )[0]
+        run2_line.set_path_effects(
+            [
+                path_effects.Stroke(linewidth=4.8, foreground="white"),
+                path_effects.Normal(),
+            ]
+        )
+
     relic_contour_segments = draw_relic_density_contour(
         axis,
         relic,
@@ -368,6 +439,18 @@ def main() -> None:
             label=r"$m_V=2m_\chi$",
         ),
     ]
+    if draw_run2_observed:
+        legend_handles.insert(
+            2,
+            Line2D(
+                [0],
+                [0],
+                color=run2_color,
+                linewidth=3.0,
+                linestyle="-",
+                label=r"Run 2 observed (138 fb$^{-1}$)",
+            ),
+        )
     if relic_contour_segments > 0:
         legend_handles.insert(
             2,
@@ -383,15 +466,18 @@ def main() -> None:
     legend = axis.legend(
         handles=legend_handles,
         loc="upper left",
-        fontsize=21,
+        fontsize=18,
         title=MODEL_LABEL,
-        title_fontsize=23,
+        title_fontsize=20,
         frameon=True,
         facecolor="white",
         edgecolor="black",
         framealpha=1.0,
-        borderpad=0.8,
-        labelspacing=0.6,
+        borderpad=0.45,
+        labelspacing=0.32,
+        handlelength=1.9,
+        handletextpad=0.55,
+        borderaxespad=0.55,
     )
     legend.set_zorder(30)
     axis.set_xlim(args.plot_xmin, args.plot_xmax)
@@ -450,6 +536,40 @@ def main() -> None:
             "mediator": "vector",
             "g_q": 0.25,
             "g_DM": 1.0,
+        },
+        "run2_observed_overlay": {
+            "requested": run2_observed is not None,
+            "drawn": bool(draw_run2_observed),
+            "reason_not_drawn": (
+                "Run-2 result is on-shell only"
+                if run2_observed is not None and not draw_run2_observed
+                else None
+            ),
+            "source": (
+                str(run2_observed["path"])
+                if run2_observed is not None
+                else None
+            ),
+            "sha256": (
+                str(run2_observed["sha256"])
+                if run2_observed is not None
+                else None
+            ),
+            "n_points": (
+                int(len(np.asarray(run2_observed["mphi"])))
+                if run2_observed is not None
+                else 0
+            ),
+            "color": run2_color if draw_run2_observed else None,
+            "linestyle": "solid" if draw_run2_observed else None,
+            "label": (
+                "CMS Run 2 observed (138 fb^-1)" if draw_run2_observed else None
+            ),
+            "metadata": (
+                run2_observed["metadata"]
+                if run2_observed is not None
+                else None
+            ),
         },
         "shell_mode": args.shell_mode,
         "step_gev": args.step,

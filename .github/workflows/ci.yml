@@ -12,6 +12,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Install test dependencies
+        run: python -m pip install numpy scipy
       - name: Compile Python sources
         env:
           PYTHONPYCACHEPREFIX: /tmp/monotop-pycache

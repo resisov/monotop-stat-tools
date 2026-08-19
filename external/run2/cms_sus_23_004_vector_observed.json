@@ -1,0 +1,46 @@
+{
+  "analysis": "CMS-SUS-23-004",
+  "publication": "JHEP 09 (2025) 141",
+  "publication_doi": "10.1007/JHEP09(2025)141",
+  "hepdata_doi": "10.17182/hepdata.156969.v2",
+  "arxiv": "2503.20033",
+  "run": "Run 2",
+  "luminosity_fb": 138.0,
+  "sqrt_s_tev": 13.0,
+  "figure": "Figure 7-a",
+  "figure_url": "https://cms-results.web.cern.ch/cms-results/public-results/publications/SUS-23-004/CMS-SUS-23-004_Figure_007-a.pdf",
+  "figure_sha256": "a63aa13a47c6d723596b241f13a75640a0f90a4c7ad6753692f35620c962c869",
+  "model": {
+    "mediator": "vector",
+    "g_q": 0.25,
+    "g_DM": 1.0
+  },
+  "scope": "on-shell mediator decays only",
+  "contour": "observed 95% CL exclusion",
+  "n_points": 95,
+  "columns": [
+    "mV_GeV",
+    "mX_GeV"
+  ],
+  "extraction": {
+    "method": "lossless extraction of the solid red vector path from the official PDF",
+    "tool": "pdfplumber 0.11.9",
+    "pdf_axis_bounds_points": {
+      "left": 162.0,
+      "right": 724.464,
+      "top": 86.4,
+      "bottom": 640.8
+    },
+    "axis_ranges_gev": {
+      "mV": [
+        200.0,
+        2250.0
+      ],
+      "mX": [
+        0.0,
+        1125.0
+      ]
+    }
+  },
+  "note": "HEPData Table 20 is the alternative g_q=0.5 scenario and was not used for this nominal-coupling overlay."
+}

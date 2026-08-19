@@ -2,8 +2,8 @@
   "analysis": "hadronic_monotop",
   "era": "2023",
   "luminosity_fb": 17.96,
-  "input": "../inputs/hadmonotop2023_0702.scaled",
-  "histogram": "ut_bin",
+  "input": "../inputs/hadmonotop2023_0802.scaled",
+  "histogram": "ut",
   "recoil_edges_gev": [350.0, 400.0, 500.0, 600.0, 700.0, 1000.0],
   "fold_recoil_overflow": true,
   "top_categories": {
