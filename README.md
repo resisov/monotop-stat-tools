@@ -134,6 +134,8 @@ mkdir -p inputs
 
 cp /path/to/hadmonotop2022_0802.scaled inputs/
 cp /path/to/hadmonotop2022EE_0802.scaled inputs/
+cp /path/to/hadmonotop2023_0802.scaled inputs/
+cp /path/to/hadmonotop2023BPix_0802.scaled inputs/
 ```
 
 파일을 복사하지 않으려면 실행 시 절대경로를 `--input`으로 넘겨도 됩니다.
@@ -145,10 +147,12 @@ ls -lh inputs/*.scaled
 
 ### 5. 분석 설정 확인
 
-2022 설정은 다음 두 파일에 있습니다.
+현재 Run 3 설정은 다음 네 파일에 있습니다.
 
 - `config/analysis_2022preEE.json`: 7.99 fb⁻¹, `inputs/hadmonotop2022_0802.scaled`
 - `config/analysis_2022EE.json`: 26.68 fb⁻¹, `inputs/hadmonotop2022EE_0802.scaled`
+- `config/analysis_2023.json`: 17.96 fb⁻¹, `inputs/hadmonotop2023_0802.scaled`
+- `config/analysis_2023BPix.json`: 9.68 fb⁻¹, `inputs/hadmonotop2023BPix_0802.scaled`
 
 설정 파일의 상대 입력 경로는 **저장소 루트가 아니라 설정 파일이 있는
 `config/` 디렉터리 기준**으로 해석됩니다. 예를 들어
@@ -186,7 +190,8 @@ python3 run_simple.py \
 
 ### 7. 전체 워크플로우 실행
 
-2022 preEE와 EE는 서로 다른 출력 디렉터리에 순서대로 실행합니다.
+각 era는 서로 다른 출력 디렉터리에 순서대로 실행합니다. 아래 네 실행이 모두
+끝나야 2022+2023 결합으로 넘어갈 수 있습니다.
 
 ```bash
 python3 run_simple.py \
@@ -197,6 +202,16 @@ python3 run_simple.py \
 python3 run_simple.py \
   --config config/analysis_2022EE.json \
   --output outputs/2022EE_0802 \
+  --workers 4
+
+python3 run_simple.py \
+  --config config/analysis_2023.json \
+  --output outputs/2023_0802 \
+  --workers 4
+
+python3 run_simple.py \
+  --config config/analysis_2023BPix.json \
+  --output outputs/2023BPix_0802 \
   --workers 4
 ```
 
@@ -228,7 +243,47 @@ python3 workflow/run_all.py \
   --workers 4
 ```
 
-### 8. 실행이 끝났는지 확인
+### 8. 2022+2023 데이터카드와 expected limit 결합
+
+네 era에 모두 존재하는 시그널 질량점만 골라 데이터카드를 결합합니다. 현재
+설정의 적분휘도 합은 62.31 fb⁻¹입니다. 이 결합 단계는 impact를 실행하지
+않습니다.
+
+```bash
+python3 workflow/combine_eras.py \
+  --input 2022preEE=outputs/2022preEE_0802 \
+  --input 2022EE=outputs/2022EE_0802 \
+  --input 2023=outputs/2023_0802 \
+  --input 2023BPix=outputs/2023BPix_0802 \
+  --output outputs/Run3_2022_2023_0802
+
+python3 workflow/run_limits.py \
+  --output outputs/Run3_2022_2023_0802 \
+  --workers 4
+```
+
+통합 및 on-shell 플롯에 CMS Run-2 observed contour를 겹치려면 저장소에
+포함된 기준 CSV를 명시합니다.
+
+```bash
+python3 workflow/interpolate_limits.py \
+  --output outputs/Run3_2022_2023_0802 \
+  --subdirectory interpolation_run2_overlay \
+  --shell-mode all \
+  --run2-observed-contour external/run2/cms_sus_23_004_vector_observed.csv
+
+python3 workflow/interpolate_limits.py \
+  --output outputs/Run3_2022_2023_0802 \
+  --subdirectory interpolation_on_shell_run2_overlay \
+  --shell-mode on-shell-only \
+  --run2-observed-contour external/run2/cms_sus_23_004_vector_observed.csv
+```
+
+Run-2 결과는 on-shell 해석이므로 `off-shell-only` 플롯에는 중첩하지
+않습니다. 옵션을 넘기더라도 코드가 Run-2 선을 의도적으로 그리지 않고 그
+이유를 `interpolation_summary.json`에 기록합니다.
+
+### 9. 실행이 끝났는지 확인
 
 `run_simple.py`가 성공하면 마지막에 `workflow_summary.json` 경로를
 출력합니다.
@@ -281,6 +336,8 @@ limits/limits.csv/json/root          blinded expected limit 표와 ROOT 결과
 interpolation/                       통합 질량평면과 보간 격자
 interpolation_on_shell_only/         on-shell 전용 결과
 interpolation_off_shell_only/        off-shell 전용 결과
+interpolation_run2_overlay/           Run-2 observed를 중첩한 통합 질량평면
+interpolation_on_shell_run2_overlay/  Run-2 observed를 중첩한 on-shell 질량평면
 impacts/                             공식 impact PDF와 상위 nuisance 요약
 workflow_summary.json                단계별 실행 및 검증 상태
 ```
@@ -295,7 +352,25 @@ workflow_summary.json                단계별 실행 및 검증 상태
 - 불확실성 채움 영역 없음
 - 모델 표기: Vector mediator, `g_q = 0.25`, `g_DM = 1.0`
 - relic-density 표기: `Omega_nbm h^2 = 0.12`
+- 선택적 Run-2 observed 중첩: 파랑 실선과 흰색 외곽선
 - 입력 질량점의 변환된 convex hull 밖은 외삽하지 않으므로 흰색으로 표시
+
+### Run-2 observed contour의 출처와 해석 범위
+
+기본 참조선은 CMS-SUS-23-004, JHEP 09 (2025) 141의 Figure 7-a에 실린
+138 fb⁻¹ Run-2 observed 95% CL exclusion입니다. 현재 분석과 같은 vector
+mediator, `g_q=0.25`, `g_DM=1.0` 설정이며 on-shell 영역만 대상으로 합니다.
+
+- 좌표: `external/run2/cms_sus_23_004_vector_observed.csv`
+- 출처와 추출 기록: `external/run2/cms_sus_23_004_vector_observed.json`
+- CMS 결과 페이지: <https://cms-results.web.cern.ch/cms-results/public-results/publications/SUS-23-004/>
+- HEPData: <https://www.hepdata.net/record/ins2904618>
+
+HEPData Table 20은 `g_q=0.5` 대안 시나리오이므로 nominal 중첩에 사용하지
+않았습니다. CSV는 공식 Figure 7-a PDF의 solid observed 벡터 경로에서
+추출했으며 PDF URL, SHA-256, 축 범위와 추출 방법을 JSON에 함께 기록합니다.
+Run-3 빨강 선은 blinded **expected**이고 Run-2 파랑 선은 **observed**이므로
+두 선의 차이를 단순한 적분휘도 향상으로만 해석하면 안 됩니다.
 
 ## 분석 모델과 보간
 
@@ -426,9 +501,11 @@ workflow/run_limits.py                병렬 blinded expected limit
 workflow/limit_interpolation.py       threshold-aware 보간 공용 함수
 workflow/interpolate_limits.py        2D 보간과 질량평면 플롯
 workflow/plot_brazil_limit.py         고정 mX의 1D Brazil 플롯
+workflow/combine_eras.py              여러 era의 공통 질량점 데이터카드 결합
 workflow/run_impacts.py               blinded benchmark impact
 workflow/validate_outputs.py          전체 산출물 엄격 검증
 external/relic_densities/             relic-density 참조 입력
+external/run2/                        CMS Run-2 observed contour와 출처 메타데이터
 tests/                                워크플로우 및 보간 회귀 테스트
 ```
 
